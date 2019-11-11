@@ -1,0 +1,35 @@
+version: '3.7'
+
+services:
+  db:
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    image: postgres:alpine
+    networks:
+      - default
+    ports:
+      - 5401:5432
+    restart: always
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+
+  service:
+    build:
+      context: .
+    #      args:
+    #        NODE_ENV: 'dev'
+    depends_on:
+      - db
+    environment:
+      - NODE_ENV=dev
+    networks:
+      - default
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/home/node/app
+    restart: always
+#    command: ["./wait-for-db.sh", "db:5401"]
+#    command: ./wait-for-db.sh db:5401 -- /home/node/app/node_modules/.bin/nodemon app.js
