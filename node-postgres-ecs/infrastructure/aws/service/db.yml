@@ -1,0 +1,90 @@
+Resources:
+  DBClusterParameterGroup:
+    Type: 'AWS::RDS::DBClusterParameterGroup'
+    Properties:
+      Description: Parameter Group for Aurora Cluster force SSL enabled
+      Family: aurora-postgresql10
+      Parameters:
+        rds.force_ssl: '1'
+      Tags:
+        - Key: createdBy
+          Value: ${self:service}-${self:provider.stage}
+
+  DbSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: For allowing access to the database port from vpc ids.
+      VpcId: { Ref: 'Vpc' }
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: ${self:custom.cidrPrefixes.${self:provider.stage}}.0.0/16
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.32.0.0/16
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  DatabaseSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: DB Subnets
+      SubnetIds:
+        - { Ref: 'PrivateSubnetAz1' }
+        - { Ref: 'PrivateSubnetAz2' }
+
+  AuroraDatabaseCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: ${self:custom.deletionPolicy.${self:provider.stage}}
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: '10.7'
+      DBClusterIdentifier: ${self:service}-aurorapg-dbcluster-${self:provider.stage}
+      DBClusterParameterGroupName:
+        Ref: DBClusterParameterGroup
+      DatabaseName: ${self:provider.stage}
+      MasterUsername: ${self:custom.DB_USERNAME}
+      MasterUserPassword: ${self:custom.DB_PASSWORD}
+      EnableIAMDatabaseAuthentication: 'true'
+      StorageEncrypted: 'true'
+      Port: 5432
+      Tags:
+        - Key: name
+          Value: ${self:service}-aurorapg-dbcluster-${self:provider.stage}
+      DBSubnetGroupName:
+        Ref: DatabaseSubnetGroup
+      VpcSecurityGroupIds:
+        - 'Fn::GetAtt':
+            - DbSecurityGroup
+            - GroupId
+
+  AuroraDatabase:
+    Type: AWS::RDS::DBInstance
+    DependsOn: AuroraDatabaseCluster
+    Properties:
+      Tags:
+        - Key: name
+          Value: ${self:service}-aurorapg-${self:provider.stage}
+      Engine: aurora-postgresql
+      EngineVersion: '10.7'
+      DBInstanceIdentifier: ${self:service}-aurorapg-${self:provider.stage}
+      DBClusterIdentifier:
+        Ref: AuroraDatabaseCluster
+      DBSubnetGroupName:
+        Ref: DatabaseSubnetGroup
+      DBInstanceClass: db.t3.medium
+      PubliclyAccessible: false
+
+  DbHostSharedParameter:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: Sample DB Cluster Host
+      Name: /services/${self:service}/env/${self:provider.stage}/resources/database/host
+      Type: 'String'
+      Value:
+        Fn::GetAtt:
+          - 'AuroraDatabaseCluster'
+          - 'Endpoint.Address'

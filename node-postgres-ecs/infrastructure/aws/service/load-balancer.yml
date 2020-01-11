@@ -1,0 +1,38 @@
+Resources:
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internal
+      Name: ${self:service}-lb-${self:provider.stage}
+      Subnets:
+        - { Ref: 'PrivateSubnetAz1' }
+        - { Ref: 'PrivateSubnetAz2' }
+      Type: network
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+      - NetworkLoadBalancer
+    Properties:
+      Name: ${self:service}-tg-${self:provider.stage}
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 10
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: TCP
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      TargetType: ip
+      Port: ${self:custom.containerPort}
+      Protocol: TCP
+      VpcId: { Ref: 'Vpc' }
+
+  NetworkLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '80'
+      Protocol: TCP

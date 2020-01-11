@@ -1,0 +1,172 @@
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ${self:service}-cluster-${self:provider.stage}
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: AmazonECSTaskExecutionRolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Allow the ECS Tasks to download images from ECR
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                Resource: 'arn:aws:ecr:#{AWS::Region}:#{AWS::AccountId}:repository/aws-samples/node-postgres-ecs/*'
+              - Effect: Allow
+                Action:
+                  # Allow the ECS tasks to upload logs to CloudWatch
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:PutLogEvents'
+                  - 'logs:GetLogEvents'
+                  - 'logs:FilterLogEvents'
+                Resource: '*'
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ecs-tasks.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: AmazonECSTaskRolePolicy
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:DeleteObject'
+                  - 's3:PutObjectAcl'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                Resource: '*'
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to containers
+      VpcId: { Ref: 'Vpc' }
+
+  EcsSecurityGroupIngressFromClient:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from external clients
+      GroupId: !Ref ContainerSecurityGroup
+      CidrIp: 0.0.0.0/0
+      FromPort: ${self:custom.containerPort}
+      ToPort: ${self:custom.containerPort}
+      IpProtocol: tcp
+
+  EcsSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: All traffic
+      FromPort: -1
+      GroupId: !Ref ContainerSecurityGroup
+      IpProtocol: -1
+      ToPort: -1
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: ${self:service}-${self:provider.stage}
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - LogGroup
+    Properties:
+      Family: ${self:service}-${self:provider.stage}
+      Cpu: ${self:custom.containerCPU.${self:provider.stage}}
+      Memory: ${self:custom.containerMemory.${self:provider.stage}}
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn:
+        arn:aws:iam::#{AWS::AccountId}:role/#{ECSTaskExecutionRole}
+      TaskRoleArn:
+        arn:aws:iam::#{AWS::AccountId}:role/#{ECSTaskRole}
+      ContainerDefinitions:
+        - Name: ${self:service}-container-${self:provider.stage}
+          Cpu: ${self:custom.containerCPU.${self:provider.stage}}
+          Memory: ${self:custom.containerMemory.${self:provider.stage}}
+          Image: ${self:custom.imageUrl}
+          PortMappings:
+            - ContainerPort: ${self:custom.containerPort}
+              HostPort: ${self:custom.containerPort}
+              Protocol: tcp
+          Environment:
+            - Name: ENV
+              Value: ${self:provider.stage}
+            - Name: NODE_ENV
+              Value: ${self:provider.stage}
+            - Name: STAGE
+              Value: ${self:provider.stage}
+            - Name: PORT
+              Value: ${self:custom.containerPort}
+            - Name: WORKERS
+              Value: ${self:custom.gunicornWorkers.${self:provider.stage}}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref 'LogGroup'
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ${self:provider.stage}
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ContainerSecurityGroup
+      - ECSCluster
+      - TargetGroup
+      - TaskDefinition
+      - NetworkLoadBalancer
+    Properties:
+      ServiceName: ${self:service}-${self:provider.stage}
+      Cluster:
+        !Ref 'ECSCluster'
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: ${self:custom.desiredCount}
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref 'ContainerSecurityGroup'
+          Subnets:
+            - { Ref: 'PrivateSubnetAz1' }
+            - { Ref: 'PrivateSubnetAz2' }
+      TaskDefinition: !Ref 'TaskDefinition'
+      LoadBalancers:
+        - ContainerName: ${self:service}-container-${self:provider.stage}
+          ContainerPort: ${self:custom.containerPort}
+          TargetGroupArn: !Ref 'TargetGroup'

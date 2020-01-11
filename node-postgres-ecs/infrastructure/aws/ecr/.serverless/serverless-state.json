@@ -1,0 +1,341 @@
+{
+  "service": {
+    "service": "node-postgres-ecs-ecr",
+    "serviceObject": {
+      "name": "node-postgres-ecs-ecr"
+    },
+    "provider": {
+      "stage": "qa",
+      "variableSyntax": "\\${([ ~:a-zA-Z0-9._@'\",\\-\\/\\(\\)*?]+?)}",
+      "name": "aws",
+      "runtime": "nodejs10.x",
+      "region": "us-west-1",
+      "versionFunctions": true,
+      "remoteFunctionData": null,
+      "compiledCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ServerlessDeploymentBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketEncryption": {
+                "ServerSideEncryptionConfiguration": [
+                  {
+                    "ServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ServerlessDeploymentBucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+              "Bucket": {
+                "Ref": "ServerlessDeploymentBucket"
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": "s3:*",
+                    "Effect": "Deny",
+                    "Principal": "*",
+                    "Resource": [
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:aws:s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            },
+                            "/*"
+                          ]
+                        ]
+                      }
+                    ],
+                    "Condition": {
+                      "Bool": {
+                        "aws:SecureTransport": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ECRRepository": {
+            "Type": "AWS::ECR::Repository",
+            "Properties": {
+              "RepositoryPolicyText": {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Sid": "AllowPushPull",
+                    "Effect": "Allow",
+                    "Principal": {
+                      "AWS": [
+                        {
+                          "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/${ECSRole}"
+                        }
+                      ]
+                    },
+                    "Action": [
+                      "ecr:GetDownloadUrlForLayer",
+                      "ecr:BatchGetImage",
+                      "ecr:BatchCheckLayerAvailability",
+                      "ecr:PutImage",
+                      "ecr:InitiateLayerUpload",
+                      "ecr:UploadLayerPart",
+                      "ecr:CompleteLayerUpload"
+                    ]
+                  }
+                ]
+              },
+              "RepositoryName": "aws-samples/node-postgres-ecs/qa"
+            }
+          },
+          "ECSRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+              "AssumeRolePolicyDocument": {
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": [
+                        "ecs.amazonaws.com"
+                      ]
+                    },
+                    "Action": [
+                      "sts:AssumeRole"
+                    ]
+                  }
+                ]
+              },
+              "Path": "/",
+              "Policies": [
+                {
+                  "PolicyName": "ecs-service",
+                  "PolicyDocument": {
+                    "Statement": [
+                      {
+                        "Effect": "Allow",
+                        "Action": [
+                          "ec2:AttachNetworkInterface",
+                          "ec2:CreateNetworkInterface",
+                          "ec2:CreateNetworkInterfacePermission",
+                          "ec2:DeleteNetworkInterface",
+                          "ec2:DeleteNetworkInterfacePermission",
+                          "ec2:Describe*",
+                          "ec2:DetachNetworkInterface",
+                          "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                          "elasticloadbalancing:DeregisterTargets",
+                          "elasticloadbalancing:Describe*",
+                          "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                          "elasticloadbalancing:RegisterTargets",
+                          "logs:CreateLogStream",
+                          "logs:PutLogEvents"
+                        ],
+                        "Resource": "*"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": {
+              "Ref": "ServerlessDeploymentBucket"
+            }
+          },
+          "ECRRepositoryURI": {
+            "Description": "The URI of the ECR repository",
+            "Value": {
+              "Fn::Sub": "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}"
+            }
+          }
+        }
+      },
+      "coreCloudFormationTemplate": {
+        "AWSTemplateFormatVersion": "2010-09-09",
+        "Description": "The AWS CloudFormation template for this Serverless application",
+        "Resources": {
+          "ServerlessDeploymentBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+              "BucketEncryption": {
+                "ServerSideEncryptionConfiguration": [
+                  {
+                    "ServerSideEncryptionByDefault": {
+                      "SSEAlgorithm": "AES256"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ServerlessDeploymentBucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+              "Bucket": {
+                "Ref": "ServerlessDeploymentBucket"
+              },
+              "PolicyDocument": {
+                "Statement": [
+                  {
+                    "Action": "s3:*",
+                    "Effect": "Deny",
+                    "Principal": "*",
+                    "Resource": [
+                      {
+                        "Fn::Join": [
+                          "",
+                          [
+                            "arn:aws:s3:::",
+                            {
+                              "Ref": "ServerlessDeploymentBucket"
+                            },
+                            "/*"
+                          ]
+                        ]
+                      }
+                    ],
+                    "Condition": {
+                      "Bool": {
+                        "aws:SecureTransport": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "Outputs": {
+          "ServerlessDeploymentBucketName": {
+            "Value": {
+              "Ref": "ServerlessDeploymentBucket"
+            }
+          }
+        }
+      }
+    },
+    "custom": {
+      "output": {
+        "file": ".build/output.yml"
+      },
+      "repositoryName": "aws-samples/node-postgres-ecs/qa"
+    },
+    "plugins": [
+      "serverless-pseudo-parameters",
+      "serverless-stack-output"
+    ],
+    "pluginsData": {},
+    "functions": {},
+    "resources": {
+      "Resources": {
+        "ECRRepository": {
+          "Type": "AWS::ECR::Repository",
+          "Properties": {
+            "RepositoryPolicyText": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "AllowPushPull",
+                  "Effect": "Allow",
+                  "Principal": {
+                    "AWS": [
+                      {
+                        "Fn::Sub": "arn:aws:iam::#{AWS::AccountId}:role/#{ECSRole}"
+                      }
+                    ]
+                  },
+                  "Action": [
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage",
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:PutImage",
+                    "ecr:InitiateLayerUpload",
+                    "ecr:UploadLayerPart",
+                    "ecr:CompleteLayerUpload"
+                  ]
+                }
+              ]
+            },
+            "RepositoryName": "aws-samples/node-postgres-ecs/qa"
+          }
+        },
+        "ECSRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "ecs.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/",
+            "Policies": [
+              {
+                "PolicyName": "ecs-service",
+                "PolicyDocument": {
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "ec2:AttachNetworkInterface",
+                        "ec2:CreateNetworkInterface",
+                        "ec2:CreateNetworkInterfacePermission",
+                        "ec2:DeleteNetworkInterface",
+                        "ec2:DeleteNetworkInterfacePermission",
+                        "ec2:Describe*",
+                        "ec2:DetachNetworkInterface",
+                        "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                        "elasticloadbalancing:DeregisterTargets",
+                        "elasticloadbalancing:Describe*",
+                        "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                        "elasticloadbalancing:RegisterTargets",
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents"
+                      ],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "Outputs": {
+        "ECRRepositoryURI": {
+          "Description": "The URI of the ECR repository",
+          "Value": {
+            "Fn::Sub": "#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/#{ECRRepository}"
+          }
+        }
+      }
+    },
+    "serviceFilename": "ecr.yml",
+    "layers": {}
+  },
+  "package": {
+    "artifactDirectoryName": "serverless/node-postgres-ecs-ecr/qa/1574721423242-2019-11-25T22:37:03.242Z",
+    "artifact": ""
+  }
+}

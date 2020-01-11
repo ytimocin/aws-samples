@@ -1,0 +1,159 @@
+Resources:
+  Vpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: ${self:custom.cidrBlock.${self:provider.stage}}
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value: ${self:service}-vpc-${self:provider.stage}
+
+  VpcPeeringConnection:
+    Type: 'AWS::EC2::VPCPeeringConnection'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      PeerVpcId: vpc-01d93ef469a85cd37
+
+  PeerRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 10.32.0.0/16
+      RouteTableId: { Ref: 'PrivateRouteTableViaNat' }
+      VpcPeeringConnectionId: { Ref: 'VpcPeeringConnection' }
+
+  UtilPeerRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.0.0/16
+      RouteTableId: rtb-0b226a2c1e080c554
+      VpcPeeringConnectionId: { Ref: 'VpcPeeringConnection' }
+
+  BastionPeerRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.0.0/16
+      RouteTableId: rtb-0b226a2c1e080c554
+      VpcPeeringConnectionId: { Ref: 'VpcPeeringConnection' }
+
+  PublicSubnetAz1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      CidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.1.0/24
+      AvailabilityZone: us-west-1a
+      Tags:
+        - Key: Name
+          Value: ${self:service}-public-subnet-1-${self:provider.stage}
+        - Key: Purpose
+          Value: A public subnet used by things that need a public Ip Address
+
+  PublicSubnetAz2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      CidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.2.0/24
+      AvailabilityZone: us-west-1b
+      Tags:
+        - Key: Name
+          Value: ${self:service}-public-subnet-2-${self:provider.stage}
+        - Key: Purpose
+          Value: A public subnet used by things that need a public Ip Address
+
+  PrivateSubnetAz1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      CidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.3.0/24
+      AvailabilityZone: us-west-1a
+      Tags:
+        - Key: Name
+          Value: ${self:service}-private-subnet-1-${self:provider.stage}
+        - Key: Purpose
+          Value: A private subnet used by things that do not need a public Ip Address
+
+  PrivateSubnetAz2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      CidrBlock: ${self:custom.cidrPrefixes.${self:provider.stage}}.4.0/24
+      AvailabilityZone: us-west-1b
+      Tags:
+        - Key: Name
+          Value: ${self:service}-private-subnet-2-${self:provider.stage}
+        - Key: Purpose
+          Value: A private subnet used by things that do not need a public Ip Address
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+
+  GatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+      InternetGatewayId: { Ref: 'InternetGateway' }
+
+  RouteViaInternetGateway:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+
+  PublicRouteViaInternetGateway:
+    Type: 'AWS::EC2::Route'
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: { Ref: 'RouteViaInternetGateway' }
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: { Ref: 'InternetGateway' }
+
+  NatElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: GatewayAttachment
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - NatElasticIp
+          - AllocationId
+      SubnetId:
+        Ref: PublicSubnetAz1
+
+  PrivateRouteTableViaNat:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: { Ref: 'Vpc' }
+
+  PrivateRouteViaNat:
+    Type: 'AWS::EC2::Route'
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: { Ref: 'PrivateRouteTableViaNat' }
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: { Ref: 'NatGateway' }
+
+  PubSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: { Ref: 'PublicSubnetAz1' }
+      RouteTableId: { Ref: 'RouteViaInternetGateway' }
+
+  PubSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: { Ref: 'PublicSubnetAz2' }
+      RouteTableId: { Ref: 'RouteViaInternetGateway' }
+
+  PrivSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: { Ref: 'PrivateSubnetAz1' }
+      RouteTableId: { Ref: 'PrivateRouteTableViaNat' }
+
+  PrivSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: { Ref: 'PrivateSubnetAz2' }
+      RouteTableId: { Ref: 'PrivateRouteTableViaNat' }

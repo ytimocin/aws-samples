@@ -1,0 +1,142 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "2019-09-25T18:08:34Z",
+    "title": "aws-samples/node-postgres-ecs"
+  },
+  "x-amazon-apigateway-request-validators": {
+    "body-only": {
+      "validateRequestBody": false,
+      "validateRequestParameters": false
+    }
+  },
+  "x-amazon-apigateway-request-validator": "body-only",
+  "paths": {
+    "/users": {
+      "options": {
+        "summary": "CORS support",
+        "description": "Enable CORS by returning correct headers",
+        "tags": [
+          "CORS"
+        ],
+        "x-amazon-apigateway-integration": {
+          "type": "mock",
+          "requestTemplates": {
+            "application/json": "{\"statusCode\": 200}"
+          },
+          "responses": {
+            "default": {
+              "statusCode": "200",
+              "responseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+                "method.response.header.Access-Control-Allow-Methods": "'*'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              },
+              "responseTemplates": {
+                "application/json": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default response for CORS method",
+            "headers": {
+              "Access-Control-Allow-Headers": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "headers": {
+              "Access-Control-Allow-Headers": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Methods": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "x-amazon-apigateway-integration": {
+          "responses": {
+            "default": {
+              "statusCode": "200",
+              "responseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent'",
+                "method.response.header.Access-Control-Allow-Methods": "'*'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              }
+            }
+          },
+          "uri": {
+            "Fn::Join": [
+              "",
+              [
+                "http://",
+                {
+                  "Fn::GetAtt": [
+                    "NetworkLoadBalancer",
+                    "DNSName"
+                  ]
+                },
+                "/hello"
+              ]
+            ]
+          },
+          "connectionType": "VPC_LINK",
+          "connectionId": {
+            "Ref": "EcsVpcLink"
+          },
+          "httpMethod": "GET",
+          "type": "HTTP_PROXY"
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": ""
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "name": "x-api-key",
+        "in": "header"
+      }
+    }
+  }
+}

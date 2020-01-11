@@ -1,0 +1,41 @@
+Resources:
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: ${self:provider.stage}
+
+  EcsVpcLink:
+    Type: AWS::ApiGateway::VpcLink
+    Properties:
+      Name: ${self:service}-${self:provider.stage}-ecs-private-link
+      TargetArns:
+        - !Ref NetworkLoadBalancer
+
+  ApiGatewayApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - ApiGatewayDeployment
+    Properties:
+      Name: ${self:service}-api-key-${self:provider.stage}
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref ApiGatewayRestApi
+          StageName: ${self:provider.stage}
+
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiGatewayDeployment
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ApiGatewayRestApi
+          Stage: ${self:provider.stage}
+      UsagePlanName: ${self:service}-usage-plan-${self:provider.stage}
+
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiGatewayApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan

@@ -1,0 +1,75 @@
+plugins:
+  - serverless-pseudo-parameters
+  - serverless-stack-output
+
+service: node-postgres-ecs-ecr
+
+provider:
+  name: aws
+  stage: ${opt:stage, 'dev'}
+  runtime: nodejs10.x
+  region: us-west-1
+
+custom:
+  output:
+    file: .build/output.yml
+  repositoryName: aws-samples/node-postgres-ecs/${self:provider.stage}
+
+resources:
+  Resources:
+    ECRRepository:
+      Type: AWS::ECR::Repository
+      Properties:
+        RepositoryPolicyText:
+          Version: '2012-10-17'
+          Statement:
+            - Sid: AllowPushPull
+              Effect: Allow
+              Principal:
+                AWS:
+                  - !Sub arn:aws:iam::#{AWS::AccountId}:role/#{ECSRole}
+              Action:
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:BatchGetImage'
+                - 'ecr:BatchCheckLayerAvailability'
+                - 'ecr:PutImage'
+                - 'ecr:InitiateLayerUpload'
+                - 'ecr:UploadLayerPart'
+                - 'ecr:CompleteLayerUpload'
+        RepositoryName: ${self:custom.repositoryName}
+    ECSRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: [ecs.amazonaws.com]
+              Action: ['sts:AssumeRole']
+        Path: /
+        Policies:
+          - PolicyName: ecs-service
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - 'ec2:AttachNetworkInterface'
+                    - 'ec2:CreateNetworkInterface'
+                    - 'ec2:CreateNetworkInterfacePermission'
+                    - 'ec2:DeleteNetworkInterface'
+                    - 'ec2:DeleteNetworkInterfacePermission'
+                    - 'ec2:Describe*'
+                    - 'ec2:DetachNetworkInterface'
+                    - 'elasticloadbalancing:DeregisterInstancesFromLoadBalancer'
+                    - 'elasticloadbalancing:DeregisterTargets'
+                    - 'elasticloadbalancing:Describe*'
+                    - 'elasticloadbalancing:RegisterInstancesWithLoadBalancer'
+                    - 'elasticloadbalancing:RegisterTargets'
+                    - 'logs:CreateLogStream'
+                    - 'logs:PutLogEvents'
+                  Resource: '*'
+
+  Outputs:
+    ECRRepositoryURI:
+      Description: The URI of the ECR repository
+      Value: !Sub '#{AWS::AccountId}.dkr.ecr.#{AWS::Region}.amazonaws.com/#{ECRRepository}'

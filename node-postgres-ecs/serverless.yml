@@ -1,0 +1,119 @@
+plugins:
+  - serverless-pseudo-parameters
+  - serverless-domain-manager
+  - serverless-python-requirements
+  - serverless-offline
+
+service: node-postgres-ecs
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  region: us-west-1
+  stage: ${opt:stage, 'dev'}
+  tag: ${opt:tag, 'latest'}
+  vpc:
+    subnetIds:
+      - { Ref: 'PrivateSubnetAz1' }
+      - { Ref: 'PrivateSubnetAz2' }
+
+package:
+  exclude:
+    - '*/**'
+  include:
+    - lambda/**
+
+resources:
+  - Resources:
+      ApiGatewayRestApi:
+        Type: AWS::ApiGateway::RestApi
+        Properties:
+          Name: ${self:provider.stage}-${self:service}
+          Body: ${file(infrastructure/aws/service/openapi.json)}
+  - ${file(infrastructure/aws/service/vpc.yml)}
+  - ${file(infrastructure/aws/service/load-balancer.yml)}
+  - ${file(infrastructure/aws/service/ecs.yml)}
+  - ${file(infrastructure/aws/service/db.yml)}
+  - ${file(infrastructure/aws/service/api-gateway.yml)}
+  - Outputs:
+      ApiKeyId:
+        Description: Generated API Key
+        Value:
+          {Ref: 'ApiGatewayApiKey'}
+        Export:
+          Name: ${self:service}-api-key-${self:provider.stage}
+
+custom:
+  DB_USERNAME: ${opt:dbMasterUsername, '${self:custom.dbUsername.${self:provider.stage}}'}
+  DB_PASSWORD: ${opt:dbMasterPassword, '${self:custom.dbPassword.${self:provider.stage}}'}
+  DB_DBNAME: ${self:provider.stage}
+  dbUsername:
+    dev: 'test'
+    qa: 'test'
+    stg: 'test'
+    prd: 'test'
+  dbPassword:
+    dev: 'TestTestTest'
+    qa: 'TestTestTest'
+    stg: 'TestTestTest'
+    prd: 'TestTestTest'
+  deletionPolicy:
+    qa: Delete
+    stg: Delete
+    prd: Snapshot
+  containerPort: '3000'
+  containerCPU:
+    qa: '256'
+    stg: '512'
+    prd: '1024'
+  containerMemory:
+    qa: '512'
+    stg: '1024'
+    prd: '2048'
+  gunicornWorkers:
+    qa: 1
+    stg: 2
+    prd: 3
+  imageUrl: 574698013493.dkr.ecr.us-west-1.amazonaws.com/aws-samples/node-postgres-ecs/${self:provider.stage}:${self:provider.tag}
+  desiredCount: '1'
+  cidrPrefixes:
+    qa: 10.14
+    dev: 10.15
+    stg: 10.16
+    prd: 10.17
+  cidrBlock:
+    qa: ${self:custom.cidrPrefixes.qa}.0.0/16
+    dev: ${self:custom.cidrPrefixes.dev}.0.0/16
+    stg: ${self:custom.cidrPrefixes.stg}.0.0/16
+    prd: ${self:custom.cidrPrefixes.prd}.0.0/16
+  customDomain:
+    domainName: ${self:custom.domain.${opt:stage, ''}}
+    stage: ${self:provider.stage}
+    certificateArn: ${self:custom.certificate.${opt:stage, ''}}
+    basePath: ''
+    createRoute53Record: true
+    enabled: ${self:custom.enableCustomDomain.${self:provider.stage}}
+  enableCustomDomain:
+    dev: false
+    qa: false
+    stg: true
+    prd: true
+  domain:
+    qa: api.qa.ogrencimerkezi.com
+    stg: api.stg.ogrencimerkezi.com
+    prd: api.prd.ogrencimerkezi.com
+  certificate:
+    dev: 'arn:aws:acm:us-west-1:574698013493:certificate/786ec8d8-a09c-47eb-adc0-25d3ac8c4737'
+    qa: 'arn:aws:acm:us-west-1:574698013493:certificate/786ec8d8-a09c-47eb-adc0-25d3ac8c4737'
+    stg: 'arn:aws:acm:us-west-1:574698013493:certificate/786ec8d8-a09c-47eb-adc0-25d3ac8c4737'
+    prd: 'arn:aws:acm:us-west-1:574698013493:certificate/786ec8d8-a09c-47eb-adc0-25d3ac8c4737'
+
+functions:
+  hello:
+    handler: lambda/hello.hello
+    events:
+      - http:
+          path: hello
+          method: get
+    environment:
+      ENV: ${self:provider.stage}
