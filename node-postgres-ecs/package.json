@@ -20,7 +20,7 @@
     "nodemon": "^1.19.4",
     "sequelize-cli": "^5.5.1",
     "serverless-domain-manager": "^3.3.0",
-    "serverless-offline": "^5.12.0",
+    "serverless-offline": "^12.0.4",
     "serverless-pseudo-parameters": "^2.5.0",
     "serverless-python-requirements": "^5.0.1"
   }
